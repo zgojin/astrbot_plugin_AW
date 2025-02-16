@@ -5,7 +5,7 @@ README 依样画葫芦，没思路，抄的！
 谢原作者开源让我有东西抄，没它不行，抄的！ 
 
 ## 注意 ##
-*** 完整体验需要安装插件后下载releases文件解压，把图片解压至AstrBot\data\plugins\astrbot_plugin_AnimeWife\img\wife文件夹下 ***
+** 完整体验需要安装插件后下载releases文件解压，把图片解压至AstrBot\data\plugins\astrbot_plugin_AnimeWife\img\wife文件夹下 **
 
 ## 指令 ##
 - `抽老婆` 每天一次，随机抽一张二次元老婆
