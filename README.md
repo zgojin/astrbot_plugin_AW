@@ -1,6 +1,6 @@
 ## 写在前面 ##
 灵感取自 [https://github.com/Rinco304/AnimeWife](https://github.com/Rinco304/AnimeWife)，没创意，抄的！
-代码照着弄的，没本事原创，抄的！
+代码有了逻辑照着改的，没本事原创，抄的！
 README 依样画葫芦，没思路，抄的！
 谢原作者开源让我有东西抄，没它不行，抄的！ 
 
