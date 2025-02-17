@@ -7,8 +7,8 @@
 ## 注意 ##
 **完整体验需要安装插件后下载releases文件解压，把图片解压至AstrBot\data\plugins\astrbot_plugin_AnimeWife\img\wife文件夹下**
 gayhub不怎么会玩，不知道怎么设置，导致下载插件会导致下载release的zip包，导致无法下载，现在上传到其他盘
--  [123](https://www.123912.com/s/WYodjv-NFpCd) **
--  [drive](https://drive.google.com/file/d/1nLKBTqSOgBECMdth0tk0vnQwARhb_osH/view?usp=drive_link)
+-  [123](https://www.123912.com/s/WYodjv-NFpCd) 国内不限速，但可能需要登录
+-  [drive](https://drive.google.com/file/d/1nLKBTqSOgBECMdth0tk0vnQwARhb_osH/view?usp=drive_link)  免登录，任何人可下载，但国内可能无法使用
 
 ## 更新 ##
 - 删除了原本的文件夹,尝试解决无法下载的原因
