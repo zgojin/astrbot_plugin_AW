@@ -104,11 +104,11 @@ class WifePlugin(Star):
 
     @event_message_type(EventMessageType.ALL)
     async def on_all_messages(self, event: AstrMessageEvent):
-        group_id = event.message_obj.group_id if hasattr(event.message_obj, "group_id") else None
-        if not group_id:
-            yield event.plain_result('该功能仅支持群聊，请在群聊中使用。')
-            return
+        # 检查是否为群聊消息
+        if not hasattr(event.message_obj, "group_id"):
+            return  # 如果不是群聊消息，直接返回，不做处理
 
+        group_id = event.message_obj.group_id
         message_str = event.message_str.strip()
 
         for command, func in self.commands.items():
