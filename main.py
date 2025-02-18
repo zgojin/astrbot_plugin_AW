@@ -57,7 +57,7 @@ def save_ntr_statuses():
         json.dump(ntr_statuses, f, ensure_ascii=False, indent=4)
 
 
-@register("wife_plugin", "Your Name", "抽老婆插件", "1.0.0", "repo url")
+@register("wife_plugin", "Your Name", "抽老婆插件", "1.4.0", "repo url")
 class WifePlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
