@@ -1,15 +1,11 @@
 from astrbot.api.all import *
-from astrbot.api.event.filter import command
+from datetime import datetime, timedelta
 import random
 import os
 import re
-import datetime
 import json
-import logging
+import requests
 
-# 配置日志
-logging.basicConfig(level=logging.ERROR, format='%(asctime)s| %(levelname)s] [%(filename)s:%(lineno)d]: %(message)s')
-logger = logging.getLogger(__name__)
 
 # 设置插件主目录
 PLUGIN_DIR = os.path.join('data', 'plugins', 'astrbot_plugin_AnimeWife')
@@ -19,12 +15,22 @@ os.makedirs(PLUGIN_DIR, exist_ok=True)
 CONFIG_DIR = os.path.join(PLUGIN_DIR, 'config')
 os.makedirs(CONFIG_DIR, exist_ok=True)
 
-# 图片目录
+# 本地图片目录
 IMG_DIR = os.path.join(PLUGIN_DIR, 'img', 'wife')
 os.makedirs(IMG_DIR, exist_ok=True)
 
 # NTR 状态文件路径
 NTR_STATUS_FILE = os.path.join(CONFIG_DIR, 'ntr_status.json')
+
+# 图片的基础 URL
+IMAGE_BASE_URL = 'http://save.my996.top/?/img/'
+
+
+# 新增函数：获取上海时区当日日期
+def get_today():
+    utc_now = datetime.utcnow()
+    shanghai_time = utc_now + timedelta(hours=8)
+    return shanghai_time.date().isoformat()
 
 
 # 载入 NTR 状态
@@ -99,7 +105,7 @@ class WifePlugin(Star):
                             if re.search(re.escape(target_name), nick_name, re.IGNORECASE):
                                 return user_id
                         except Exception as e:
-                            logger.error(f'获取群成员信息出错: {e}')
+                            self.context.logger.error(f'获取群成员信息出错: {e}')
         return None
 
     @event_message_type(EventMessageType.ALL)
@@ -130,7 +136,7 @@ class WifePlugin(Star):
             return
 
         wife_name = None
-        today = str(datetime.date.today())
+        today = get_today()
         config = load_group_config(group_id)
 
         if config and str(user_id) in config:
@@ -144,25 +150,50 @@ class WifePlugin(Star):
                 for record_id in list(config):
                     if config[record_id][1] != today:
                         del config[record_id]
-            try:
-                wife_name = random.choice(os.listdir(IMG_DIR))
-            except IndexError:
-                yield event.plain_result('暂无老婆图片可供抽取哦。')
-                return
+            # 先尝试从本地文件夹获取图片
+            local_images = os.listdir(IMG_DIR)
+            if local_images:
+                wife_name = random.choice(local_images)
+            else:
+                try:
+                    # 本地没有图片，从网址获取
+                    response = requests.get(IMAGE_BASE_URL)
+                    if response.status_code == 200:
+                        image_list = response.text.splitlines()
+                        wife_name = random.choice(image_list)
+                    else:
+                        yield event.plain_result('无法获取图片列表，请稍后再试。')
+                        return
+                except Exception as e:
+                    yield event.plain_result(f'获取图片时发生错误: {str(e)}')
+                    return
 
         name = wife_name.split('.')[0]
         text_message = f'{nickname}，你今天的二次元老婆是{name}哒~'
-        image_path = os.path.join(IMG_DIR, wife_name)
+
+        if os.path.exists(os.path.join(IMG_DIR, wife_name)):
+            # 本地有该图片，从本地发送
+            image_path = os.path.join(IMG_DIR, wife_name)
+            chain = [
+                Plain(text_message),
+                Image.fromFileSystem(image_path)
+            ]
+        else:
+            # 本地没有该图片，从 URL 发送
+            image_url = IMAGE_BASE_URL + wife_name
+            chain = [
+                Plain(text_message),
+                Image.fromURL(image_url)
+            ]
 
         try:
-            result = event.make_result().message(text_message).file_image(image_path)
-            yield result
+            yield event.chain_result(chain)
         except Exception as e:
-            logger.error(f'发送老婆图片时发生错误{type(e)}')
+            self.context.logger.error(f'发送老婆图片时发生错误{type(e)}')
             yield event.plain_result(text_message)
 
         # 修改此处，将用户名也存入配置文件
-        write_group_config(group_id, user_id, wife_name, today, nickname, config)
+        write_group_config(group_id, user_id, wife_name, get_today(), nickname, config)
 
     async def ntr_wife(self, event: AstrMessageEvent):
         group_id = event.message_obj.group_id
@@ -205,7 +236,7 @@ class WifePlugin(Star):
             yield event.plain_result('需要对方有老婆才能牛')
             return
 
-        today = str(datetime.date.today())
+        today = get_today()
         if config[str(target_id)][1] != today:
             yield event.plain_result('对方的老婆已过期，您也不想要过期的老婆吧')
             return
@@ -228,7 +259,7 @@ class WifePlugin(Star):
             return
 
         target_id = self.parse_target(event)
-        today = str(datetime.date.today())
+        today = get_today()
         wife_name = None
 
         try:
@@ -260,13 +291,26 @@ class WifePlugin(Star):
         target_nickname = config.get(str(target_id), [None, None, target_id])[2]
 
         text_message = f'{target_nickname}的二次元老婆是{name}哒~'
-        image_path = os.path.join(IMG_DIR, wife_name)
+
+        if os.path.exists(os.path.join(IMG_DIR, wife_name)):
+            # 本地有该图片，从本地发送
+            image_path = os.path.join(IMG_DIR, wife_name)
+            chain = [
+                Plain(text_message),
+                Image.fromFileSystem(image_path)
+            ]
+        else:
+            # 本地没有该图片，从 URL 发送
+            image_url = IMAGE_BASE_URL + wife_name
+            chain = [
+                Plain(text_message),
+                Image.fromURL(image_url)
+            ]
 
         try:
-            result = event.make_result().message(text_message).file_image(image_path)
-            yield result
+            yield event.chain_result(chain)
         except Exception as e:
-            logger.error(f'发送老婆图片时发生错误{type(e)}')
+            self.context.logger.error(f'发送老婆图片时发生错误{type(e)}')
             yield event.plain_result(text_message)
 
     async def switch_ntr(self, event: AstrMessageEvent):
@@ -299,7 +343,7 @@ ntr_lmt = {}
 # 当超出次数时的提示
 ntr_max_notice = f'为防止牛头人泛滥，一天最多可牛{_ntr_max}次，请明天再来吧~'
 # 牛老婆的成功率
-ntr_possibility = 0.25
+ntr_possibility = 0.20
 
 # 用来存储所有群组的 NTR 状态
 ntr_statuses = {}
