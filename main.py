@@ -33,6 +33,21 @@ def get_today():
     return shanghai_time.date().isoformat()
 
 
+# 新增函数：解析图片名字，提取角色名和来源
+def parse_wife_name(wife_name: str) -> (str, str):
+    # 假设图片名字格式为：来源.角色名.jpg 或 角色名.jpg/png
+    parts = wife_name.split('.')
+    if len(parts) >= 3:
+        # 新格式：来源.角色名.jpg
+        source = parts[0]
+        name = parts[1]
+    else:
+        # 旧格式：角色名.jpg/png 或 角色名.png
+        name = parts[0]
+        source = '未知'
+    return name, source
+
+
 # 载入 NTR 状态
 def load_ntr_statuses():
     global ntr_statuses
@@ -57,7 +72,7 @@ def save_ntr_statuses():
         json.dump(ntr_statuses, f, ensure_ascii=False, indent=4)
 
 
-@register("wife_plugin", "Your Name", "抽老婆插件", "1.4.0", "repo url")
+@register("wife_plugin", "长安某", "群老婆插件", "1.1.0", "url")
 class WifePlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -168,8 +183,12 @@ class WifePlugin(Star):
                     yield event.plain_result(f'获取图片时发生错误: {str(e)}')
                     return
 
-        name = wife_name.split('.')[0]
-        text_message = f'{nickname}，你今天的二次元老婆是{name}哒~'
+        # 解析图片名字，提取角色名和来源
+        name, source = parse_wife_name(wife_name)
+        if source != '未知':
+            text_message = f'{nickname}，你今天的二次元老婆是来自《{source}》的{name}哒~ '
+        else:
+            text_message = f'{nickname}，你今天的二次元老婆是{name}哒~'
 
         if os.path.exists(os.path.join(IMG_DIR, wife_name)):
             # 本地有该图片，从本地发送
@@ -285,12 +304,15 @@ class WifePlugin(Star):
             return
 
         wife_name = config[str(target_id)][0]
-        name = wife_name.split('.')[0]
+        name, source = parse_wife_name(wife_name)  # 解析图片名字，提取角色名和来源
 
         # 尝试从配置文件中获取用户名
         target_nickname = config.get(str(target_id), [None, None, target_id])[2]
 
-        text_message = f'{target_nickname}的二次元老婆是{name}哒~'
+        if source != '未知':
+            text_message = f'{target_nickname}的二次元老婆是{name}哒~ 来自《{source}》'
+        else:
+            text_message = f'{target_nickname}的二次元老婆是{name}哒~'
 
         if os.path.exists(os.path.join(IMG_DIR, wife_name)):
             # 本地有该图片，从本地发送
@@ -363,7 +385,7 @@ def load_group_config(group_id: str):
     except (FileNotFoundError, json.JSONDecodeError):
         return None
 
-# 修改此处，增加用户名参数
+# 增加用户名参数
 def write_group_config(group_id: str, link_id: str, wife_name: str, date: str, nickname: str, config):
     config_file = os.path.join(CONFIG_DIR, f'{group_id}.json')
     if config is not None:
