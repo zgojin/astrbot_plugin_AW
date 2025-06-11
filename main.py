@@ -35,7 +35,7 @@ def get_today():
 
 # 新增函数：解析图片名字，提取角色名和来源
 def parse_wife_name(wife_name: str) -> (str, str):
-    # 假设图片名字格式为：来源.角色名.jpg 或 角色名.jpg/png
+    # 图片名字格式为：来源.角色名.jpg 或 角色名.jpg/png
     parts = wife_name.split('.')
     if len(parts) >= 3:
         # 新格式：来源.角色名.jpg
