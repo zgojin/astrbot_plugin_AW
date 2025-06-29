@@ -1,8 +1,11 @@
-# anime_wife_collage.py
 import os
 import json
+import time
 from PIL import Image, ImageOps, ImageDraw
 from typing import List, Dict, Set
+
+# 最大保留天数
+MAX_GALLERY_AGE = 7  # 保留7天内的图鉴
 
 
 def get_all_wife_images(img_dir: str) -> List[str]:
@@ -24,7 +27,7 @@ def get_unlocked_wives(group_id: str, config_dir: str) -> Set[str]:
                 config = json.load(f)
                 for user_data in config.values():
                     if isinstance(user_data, dict) and 'unlocked' in user_data:
-                        unlocked.update(user_data['unlocked'])
+                        unlocked.update([item["wife_name"] for item in user_data["unlocked"]])
             except json.JSONDecodeError:
                 print(f"解析配置文件 {config_file} 时出错")
     
@@ -36,7 +39,7 @@ def create_black_and_white_gallery(
     output_path: str,
     thumbnail_size: tuple = (80, 80)
 ) -> None:
-    """创建全黑白的老婆图鉴"""
+    """创建全黑白的老婆图鉴（通用版）"""
     all_wives = get_all_wife_images(img_dir)
     if not all_wives:
         raise ValueError(f"本地图片目录 {img_dir} 中未找到任何图片文件")
@@ -82,10 +85,9 @@ def create_black_and_white_gallery(
                 thumb = ImageOps.grayscale(thumb)
                 
                 collage.paste(thumb, (x, y))
-        except Exception as e:
+        except:
             # 出错时绘制默认黑白方块
             draw.rectangle([(x, y), (x+thumbnail_size[0], y+thumbnail_size[1])], fill=(200, 200, 200))
-            print(f"处理图片 {wife} 失败: {str(e)}")
         
         # 绘制边框
         draw.rectangle(
@@ -107,14 +109,14 @@ def update_gallery_with_color(
     output_path: str,
     thumbnail_size: tuple = (80, 80)
 ) -> None:
-    """在黑白大图上渲染已解锁的彩色图片"""
+    """在通用黑白大图上渲染已解锁的彩色图片"""
     all_wives = sorted(get_all_wife_images(img_dir))  # 确保顺序固定
     if not all_wives:
         raise ValueError(f"本地图片目录 {img_dir} 中未找到任何图片文件")
     
     unlocked_wives = get_unlocked_wives(group_id, config_dir)
     
-    # 打开黑白大图
+    # 打开通用黑白大图
     with Image.open(bw_gallery_path) as gallery:
         draw = ImageDraw.Draw(gallery)
         
@@ -150,12 +152,11 @@ def update_gallery_with_color(
                         
                         # 替换黑白图上的对应位置
                         gallery.paste(thumb, (x, y))
-                except Exception as e:
+                except:
                     # 出错时绘制默认方块
                     draw.rectangle([(x, y), (x+thumbnail_size[0], y+thumbnail_size[1])], fill=(200, 200, 200))
-                    print(f"渲染彩色图片 {wife} 失败: {str(e)}")
         
-        # 添加标题
+        # 添加标题（包含群ID）
         title = f"群{group_id}老婆图鉴 - 已解锁: {len(unlocked_wives)}/{len(all_wives)}"
         title_font_size = 16
         title_height = title_font_size + 10
@@ -175,6 +176,30 @@ def update_gallery_with_color(
         new_collage.save(output_path)
 
 
+# 清理旧图鉴文件
+def cleanup_old_galleries(gallery_dir: str, max_age_days: int = MAX_GALLERY_AGE) -> None:
+    """清理超过指定天数的图鉴文件"""
+    if not os.path.exists(gallery_dir):
+        return
+    
+    current_time = time.time()
+    max_age_seconds = max_age_days * 24 * 60 * 60
+    
+    for filename in os.listdir(gallery_dir):
+        file_path = os.path.join(gallery_dir, filename)
+        # 只处理图片文件
+        if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+            try:
+                # 获取文件修改时间
+                mtime = os.path.getmtime(file_path)
+                # 如果文件修改时间超过最大保留时间，则删除
+                if current_time - mtime > max_age_seconds:
+                    os.remove(file_path)
+                    print(f"删除过期图鉴文件: {filename}")
+            except Exception as e:
+                print(f"清理文件时出错: {filename}, 错误: {e}")
+
+
 def create_or_update_wife_gallery(
     group_id: str,
     img_dir: str,
@@ -185,25 +210,30 @@ def create_or_update_wife_gallery(
 ) -> str:
     """
     检查并生成老婆图鉴：
-    1. 如果黑白大图不存在，先生成黑白大图
-    2. 在黑白大图上渲染已解锁的彩色图片
+    1. 使用通用黑白大图（所有群共用）
+    2. 在通用黑白大图上渲染已解锁的彩色图片
+    3. 清理旧的图鉴文件
     """
-    bw_gallery_path = os.path.join(bw_gallery_dir, f'bw_gallery_{group_id}.png')
+    # 先清理旧的图鉴文件
+    gallery_dir = os.path.dirname(output_path)
+    cleanup_old_galleries(gallery_dir)
     
-    # 检查黑白大图是否存在，如果不存在则生成
-    if not os.path.exists(bw_gallery_path):
+    common_bw_gallery_path = os.path.join(bw_gallery_dir, 'common_bw_gallery.png')
+    
+    # 检查通用黑白大图是否存在，不存在则生成
+    if not os.path.exists(common_bw_gallery_path):
         create_black_and_white_gallery(
             img_dir=img_dir,
-            output_path=bw_gallery_path,
+            output_path=common_bw_gallery_path,
             thumbnail_size=thumbnail_size
         )
     
-    # 在黑白大图上渲染已解锁的彩色图片
+    # 在通用黑白大图上渲染已解锁的彩色图片
     update_gallery_with_color(
         group_id=group_id,
         img_dir=img_dir,
         config_dir=config_dir,
-        bw_gallery_path=bw_gallery_path,
+        bw_gallery_path=common_bw_gallery_path,
         output_path=output_path,
         thumbnail_size=thumbnail_size
     )
