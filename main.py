@@ -108,7 +108,7 @@ def get_unlock_date(unlocked, wife_name):
     return None
 
 
-@register("wife_plugin", "Your Name", "二次元老婆抽卡与图鉴插件", "1.6.0", "repo url")
+@register("wife_plugin", "长安某", "二次元老婆抽卡与图鉴插件", "1.5.0", "https://github.com/zgojin/astrbot_plugin_AW")
 class WifePlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
