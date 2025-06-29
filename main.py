@@ -24,6 +24,8 @@ os.makedirs(IMG_DIR, exist_ok=True)
 # 黑白大图目录
 BW_GALLERY_DIR = os.path.join(PLUGIN_DIR, 'bw_galleries')
 os.makedirs(BW_GALLERY_DIR, exist_ok=True)
+# 通用黑白大图路径（所有群共用）
+COMMON_BW_GALLERY_PATH = os.path.join(BW_GALLERY_DIR, 'common_bw_gallery.png')
 
 # 最终图鉴目录
 GALLERY_DIR = os.path.join(PLUGIN_DIR, 'gallery')
@@ -85,7 +87,28 @@ def save_ntr_statuses():
         json.dump(ntr_statuses, f, ensure_ascii=False, indent=2)
 
 
-@register("wife_plugin", "Your Name", "二次元老婆抽卡与图鉴插件", "1.0.0", "repo url")
+# 新增函数：将旧格式的 unlocked 列表转换为包含解锁时间的对象数组
+def upgrade_unlocked_format(unlocked_list):
+    today = get_today()
+    return [{"wife_name": wife, "unlock_date": today} for wife in unlocked_list]
+
+
+# 新增函数：从解锁列表中提取老婆名字列表
+def get_wife_names_from_unlocked(unlocked):
+    return [item["wife_name"] for item in unlocked] if isinstance(unlocked, list) else []
+
+
+# 新增函数：获取解锁时间
+def get_unlock_date(unlocked, wife_name):
+    if not isinstance(unlocked, list):
+        return None
+    for item in unlocked:
+        if item["wife_name"] == wife_name:
+            return item.get("unlock_date")
+    return None
+
+
+@register("wife_plugin", "Your Name", "二次元老婆抽卡与图鉴插件", "1.6.0", "repo url")
 class WifePlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -203,8 +226,9 @@ class WifePlugin(Star):
             }
 
             # 记录历史解锁（去重）
-            if wife_name and wife_name not in user_data["unlocked"]:
-                user_data["unlocked"].append(wife_name)
+            unlocked_wives = get_wife_names_from_unlocked(user_data["unlocked"])
+            if wife_name and wife_name not in unlocked_wives:
+                user_data["unlocked"].append({"wife_name": wife_name, "unlock_date": today})
 
         # 解析并发送结果
         name, source = parse_wife_name(wife_name)
@@ -295,8 +319,9 @@ class WifePlugin(Star):
                 "date": today
             }
             # 记录历史解锁
-            if target_wife and target_wife not in user_data["unlocked"]:
-                user_data["unlocked"].append(target_wife)
+            unlocked_wives = get_wife_names_from_unlocked(user_data["unlocked"])
+            if target_wife and target_wife not in unlocked_wives:
+                user_data["unlocked"].append({"wife_name": target_wife, "unlock_date": today})
             # 清除目标用户的当日老婆
             target_data["current"] = {"wife_name": None, "date": ""}
             write_group_config(group_id, config)
@@ -337,10 +362,14 @@ class WifePlugin(Star):
         name, source = parse_wife_name(wife_name)
         target_nickname = target_data["nickname"] or "用户"
 
+        # 获取解锁时间
+        unlock_date = get_unlock_date(target_data["unlocked"], wife_name)
+        unlock_info = f"（解锁于{unlock_date}）" if unlock_date else ""
+
         if source != '未知':
-            text_message = f'{target_nickname}的二次元老婆是{name}哒~ 来自《{source}》'
+            text_message = f'{target_nickname}的二次元老婆是{name}哒~ 来自《{source}》{unlock_info}'
         else:
-            text_message = f'{target_nickname}的二次元老婆是{name}哒~'
+            text_message = f'{target_nickname}的二次元老婆是{name}哒~{unlock_info}'
 
         try:
             # 尝试发送图片
@@ -459,15 +488,22 @@ def load_group_config(group_id: str):
             for user_id in list(config.keys()):
                 user_data = config[user_id]
                 if isinstance(user_data, list):
+                    # 旧格式：列表格式
                     if len(user_data) >= 2:
                         old_wife = user_data[0]
                         old_date = user_data[1]
                         old_nick = user_data[2] if len(user_data) > 2 else "用户"
                         config[user_id] = {
                             "current": {"wife_name": old_wife, "date": old_date},
-                            "unlocked": [old_wife],
+                            "unlocked": [{"wife_name": old_wife, "unlock_date": old_date}],
                             "nickname": old_nick
                         }
+                else:
+                    # 检查 unlocked 格式是否需要升级
+                    if "unlocked" in user_data and isinstance(user_data["unlocked"], list):
+                        if user_data["unlocked"] and isinstance(user_data["unlocked"][0], str):
+                            # 升级旧格式的 unlocked 列表
+                            user_data["unlocked"] = upgrade_unlocked_format(user_data["unlocked"])
             return config
     except:
         return {}
