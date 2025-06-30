@@ -147,7 +147,7 @@ def get_unlock_date(unlocked, wife_name):
             return item.get("unlock_date")
     return None
 
-@register("wife_plugin", "长安某", "二次元老婆抽卡与图鉴插件", "1.0.0", "https://github.com/zgojin/astrbot_plugin_AW")
+@register("wife_plugin", "长安某", "二次元老婆抽卡与图鉴插件", "1.5.1", "https://github.com/zgojin/astrbot_plugin_AW")
 class WifePlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
