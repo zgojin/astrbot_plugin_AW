@@ -33,6 +33,8 @@ os.makedirs(GALLERY_DIR, exist_ok=True)
 
 # NTR 状态文件路径
 NTR_STATUS_FILE = os.path.join(CONFIG_DIR, 'ntr_status.json')
+# NTR 次数限制文件路径
+NTR_LIMIT_FILE = os.path.join(CONFIG_DIR, 'ntr_limit.json')
 
 # 图片的基础 URL
 IMAGE_BASE_URL = 'http://save.my996.top/?/img/'
@@ -40,17 +42,82 @@ IMAGE_BASE_URL = 'http://save.my996.top/?/img/'
 # 创建线程池用于异步处理
 executor = ThreadPoolExecutor(max_workers=2)
 
+# 每人每天可牛老婆的次数
+_ntr_max = 3
+# 牛老婆的成功率
+ntr_possibility = 0.20
 
-# 新增函数：获取上海时区当日日期
+# 全局NTR数据
+ntr_statuses = {}  # NTR功能开关状态
+ntr_limits = {}    # NTR次数限制，按群、用户、日期记录
+
+def load_ntr_data():
+    """加载NTR状态和次数限制数据"""
+    global ntr_statuses, ntr_limits
+    ntr_statuses = {}
+    ntr_limits = {}
+    
+    # 加载NTR状态
+    if os.path.exists(NTR_STATUS_FILE):
+        try:
+            with open(NTR_STATUS_FILE, 'r', encoding='utf-8') as f:
+                ntr_statuses = json.load(f)
+        except Exception as e:
+            print(f"加载NTR状态失败: {e}")
+            ntr_statuses = {}
+    
+    # 加载NTR次数限制
+    if os.path.exists(NTR_LIMIT_FILE):
+        try:
+            with open(NTR_LIMIT_FILE, 'r', encoding='utf-8') as f:
+                ntr_limits = json.load(f)
+                # 兼容处理：升级旧格式数据
+                ntr_limits = _upgrade_ntr_limit_format(ntr_limits)
+        except Exception as e:
+            print(f"加载NTR次数限制失败: {e}")
+            ntr_limits = {}
+    else:
+        ntr_limits = {}
+
+def save_ntr_data():
+    """保存NTR状态和次数限制数据"""
+    try:
+        # 保存NTR状态
+        with open(NTR_STATUS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(ntr_statuses, f, ensure_ascii=False, indent=2)
+        
+        # 保存NTR次数限制
+        with open(NTR_LIMIT_FILE, 'w', encoding='utf-8') as f:
+            json.dump(ntr_limits, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"保存NTR数据失败: {e}")
+
+def _upgrade_ntr_limit_format(old_data):
+    """将旧格式的NTR次数数据升级为新的日期关联格式"""
+    new_data = {}
+    today = get_today()
+    
+    for group_id, user_data in old_data.items():
+        new_group_data = {}
+        for user_id, count in user_data.items():
+            # 旧格式中count是当日次数，但没有日期记录，默认关联到今天
+            new_group_data[user_id] = {today: count}
+        new_data[group_id] = new_group_data
+    return new_data
+
 def get_today():
+    """获取上海时区当日日期"""
     utc_now = datetime.utcnow()
     shanghai_time = utc_now + timedelta(hours=8)
     return shanghai_time.date().isoformat()
 
-
-# 新增函数：解析图片名字，提取角色名和来源
 def parse_wife_name(wife_name: str) -> (str, str):
-    # 假设图片名字格式为：来源.角色名.jpg 或 角色名.jpg/png
+    """
+    解析图片名字，提取角色名和来源
+    支持两种格式：
+    1. 来源.角色名.jpg
+    2. 角色名.jpg/png
+    """
     parts = wife_name.split('.')
     if len(parts) >= 3:
         # 新格式：来源.角色名.jpg
@@ -62,44 +129,17 @@ def parse_wife_name(wife_name: str) -> (str, str):
         source = '未知'
     return name, source
 
-
-# 载入 NTR 状态
-def load_ntr_statuses():
-    global ntr_statuses
-    # 检查文件是否存在
-    if not os.path.exists(NTR_STATUS_FILE):
-        # 文件不存在，则创建空的状态文件
-        with open(NTR_STATUS_FILE, 'w', encoding='utf-8') as f:
-            json.dump({}, f, ensure_ascii=False, indent=4)
-        ntr_statuses = {}
-    else:
-        # 文件存在，读取内容到 ntr_statuses
-        with open(NTR_STATUS_FILE, 'r', encoding='utf-8') as f:
-            ntr_statuses = json.load(f)
-
-
-# 在程序启动时调用
-load_ntr_statuses()
-
-
-def save_ntr_statuses():
-    with open(NTR_STATUS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(ntr_statuses, f, ensure_ascii=False, indent=2)
-
-
-# 新增函数：将旧格式的 unlocked 列表转换为包含解锁时间的对象数组
 def upgrade_unlocked_format(unlocked_list):
+    """将旧格式的 unlocked 列表转换为包含解锁时间的对象数组"""
     today = get_today()
     return [{"wife_name": wife, "unlock_date": today} for wife in unlocked_list]
 
-
-# 新增函数：从解锁列表中提取老婆名字列表
 def get_wife_names_from_unlocked(unlocked):
+    """从解锁列表中提取老婆名字列表"""
     return [item["wife_name"] for item in unlocked] if isinstance(unlocked, list) else []
 
-
-# 新增函数：获取解锁时间
 def get_unlock_date(unlocked, wife_name):
+    """获取指定老婆的解锁时间"""
     if not isinstance(unlocked, list):
         return None
     for item in unlocked:
@@ -107,8 +147,7 @@ def get_unlock_date(unlocked, wife_name):
             return item.get("unlock_date")
     return None
 
-
-@register("wife_plugin", "长安某", "二次元老婆抽卡与图鉴插件", "1.5.0", "https://github.com/zgojin/astrbot_plugin_AW")
+@register("wife_plugin", "长安某", "二次元老婆抽卡与图鉴插件", "1.0.0", "https://github.com/zgojin/astrbot_plugin_AW")
 class WifePlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -117,10 +156,11 @@ class WifePlugin(Star):
             "牛老婆": self.ntr_wife,
             "查老婆": self.search_wife,
             "切换ntr状态": self.switch_ntr,
-            "老婆图鉴": self.show_wife_gallery,
+            "群老婆图鉴": self.show_group_wife_gallery,
+            "老婆图鉴": self.show_personal_wife_gallery
         }
         self.admins = self.load_admins()
-    
+
     def load_admins(self):
         """加载管理员列表"""
         try:
@@ -131,14 +171,14 @@ class WifePlugin(Star):
             return []
 
     def parse_at_target(self, event):
-        """解析@目标"""
+        """解析消息中的@目标用户ID"""
         for comp in event.message_obj.message:
             if isinstance(comp, At):
                 return str(comp.qq)
         return None
 
     def parse_target(self, event):
-        """解析@目标或用户名"""
+        """解析@目标或用户名，返回用户ID"""
         target_id = self.parse_at_target(event)
         if target_id:
             return target_id
@@ -160,6 +200,7 @@ class WifePlugin(Star):
 
     @event_message_type(EventMessageType.ALL)
     async def on_all_messages(self, event: AstrMessageEvent):
+        """消息处理入口，检查并执行匹配的命令"""
         # 检查是否为群聊消息
         if not hasattr(event.message_obj, "group_id"):
             return
@@ -172,8 +213,9 @@ class WifePlugin(Star):
                 async for result in func(event):
                     yield result
                 break
-    
+
     async def animewife(self, event: AstrMessageEvent):
+        """抽老婆功能实现"""
         group_id = event.message_obj.group_id
         if not group_id:
             return
@@ -262,6 +304,7 @@ class WifePlugin(Star):
         write_group_config(group_id, config)
 
     async def ntr_wife(self, event: AstrMessageEvent):
+        """NTR（抢老婆）功能实现"""
         group_id = event.message_obj.group_id
         if not group_id:
             yield event.plain_result('该功能仅支持群聊，请在群聊中使用。')
@@ -278,10 +321,13 @@ class WifePlugin(Star):
             yield event.plain_result('无法获取用户信息，请检查消息事件对象。')
             return
 
-        # 限制每日NTR次数
-        if user_id not in ntr_lmt:
-            ntr_lmt[user_id] = 0
-        if ntr_lmt[user_id] >= _ntr_max:
+        today = get_today()
+        # 获取用户今日NTR次数
+        group_ntr = ntr_limits.setdefault(str(group_id), {})
+        user_ntr = group_ntr.setdefault(user_id, {})
+        today_count = user_ntr.get(today, 0)
+        
+        if today_count >= _ntr_max:
             yield event.plain_result(f'{nickname}，你今天已经牛了{_ntr_max}次，明日再来吧~')
             return
 
@@ -309,7 +355,10 @@ class WifePlugin(Star):
             yield event.plain_result('对方的老婆已过期，换个目标吧~')
             return
 
-        ntr_lmt[user_id] += 1
+        # 增加NTR次数并保存
+        user_ntr[today] = today_count + 1
+        save_ntr_data()
+        
         if random.random() < ntr_possibility:
             target_wife = target_data["current"]["wife_name"]
             # 更新当前用户的老婆
@@ -327,10 +376,12 @@ class WifePlugin(Star):
             write_group_config(group_id, config)
             yield event.plain_result(f'{nickname}，恭喜你成功牛走了对方的老婆！')
         else:
+            remaining = _ntr_max - (today_count + 1)
             yield event.plain_result(
-                f'{nickname}，你的NTR计划失败了，还剩{_ntr_max - ntr_lmt[user_id]}次机会~')
+                f'{nickname}，你的NTR计划失败了，还剩{remaining}次机会~')
 
     async def search_wife(self, event: AstrMessageEvent):
+        """查询老婆信息功能实现"""
         group_id = event.message_obj.group_id
         if not group_id:
             yield event.plain_result('该功能仅支持群聊，请在群聊中使用。')
@@ -393,6 +444,7 @@ class WifePlugin(Star):
             yield event.plain_result(text_message)
 
     async def switch_ntr(self, event: AstrMessageEvent):
+        """切换NTR功能开关状态"""
         group_id = event.message_obj.group_id
         if not group_id:
             yield event.plain_result('该功能仅支持群聊，请在群聊中使用。')
@@ -410,12 +462,12 @@ class WifePlugin(Star):
             return
 
         ntr_statuses[group_id] = not ntr_statuses.get(group_id, False)
-        save_ntr_statuses()
+        save_ntr_data()
         status_text = '开启' if ntr_statuses[group_id] else '关闭'
         yield event.plain_result(f'NTR功能已{status_text}，请注意群内和谐~')
 
-    # 老婆图鉴指令处理函数
-    async def show_wife_gallery(self, event: AstrMessageEvent):
+    async def show_group_wife_gallery(self, event: AstrMessageEvent):
+        """展示群老婆图鉴功能"""
         group_id = event.message_obj.group_id
         if not group_id:
             yield event.plain_result('该功能仅支持群聊，请在群聊中使用。')
@@ -428,17 +480,18 @@ class WifePlugin(Star):
             yield event.plain_result('无法获取用户信息，请重试。')
             return
 
-        # 导入图鉴生成模块
+        # 此处假设anime_wife_collage模块存在，实际使用时需确保该模块可用
         try:
             from .anime_wife_collage import create_or_update_wife_gallery, get_all_wife_images, get_unlocked_wives
-        except:
+        except Exception as e:
+            print(f"加载图鉴模块失败: {e}")
             yield event.plain_result('老婆图鉴功能加载失败，请稍后再试。')
             return
 
         # 在后台线程中执行耗时的图鉴生成操作
         loop = asyncio.get_event_loop()
         gallery_path = os.path.join(GALLERY_DIR, f'gallery_{group_id}.png')
-        
+
         try:
             gallery_path = await loop.run_in_executor(
                 executor,
@@ -464,21 +517,74 @@ class WifePlugin(Star):
             # 发送图鉴图片
             with open(gallery_path, 'rb') as f:
                 image_data = f.read()
-            
+
             msg = f'{nickname}，本群老婆图鉴来啦~ 已解锁: {unlocked_count}/{total_count}'
             yield event.chain_result([Plain(msg), Image.fromBytes(image_data)])
 
-        except:
+        except Exception as e:
+            print(f"生成图鉴失败: {e}")
             yield event.plain_result('生成图鉴失败，请稍后再试。')
 
+    async def show_personal_wife_gallery(self, event: AstrMessageEvent):
+        """展示个人老婆图鉴功能"""
+        group_id = event.message_obj.group_id
+        if not group_id:
+            yield event.plain_result('该功能仅支持群聊，请在群聊中使用。')
+            return
 
-# 每人每天可牛老婆的次数
-_ntr_max = 3
-ntr_lmt = {}
-# 牛老婆的成功率
-ntr_possibility = 0.20
+        try:
+            user_id = str(event.get_sender_id())
+            nickname = event.get_sender_name() or "用户"
+        except:
+            yield event.plain_result('无法获取用户信息，请重试。')
+            return
 
-# 加载 JSON 数据
+        config = load_group_config(group_id)
+        if str(user_id) not in config:
+            yield event.plain_result('你还没有解锁任何老婆哦~')
+            return
+
+        user_data = config[str(user_id)]
+        unlocked_wives = get_wife_names_from_unlocked(user_data["unlocked"])
+
+        if not unlocked_wives:
+            yield event.plain_result('你还没有解锁任何老婆哦~')
+            return
+
+        try:
+            from .anime_wife_collage import create_personal_wife_gallery
+        except Exception as e:
+            print(f"加载个人图鉴模块失败: {e}")
+            yield event.plain_result('个人老婆图鉴功能加载失败，请稍后再试。')
+            return
+
+        loop = asyncio.get_event_loop()
+        personal_gallery_path = os.path.join(GALLERY_DIR, f'personal_gallery_{user_id}.png')
+
+        try:
+            personal_gallery_path = await loop.run_in_executor(
+                executor,
+                create_personal_wife_gallery,
+                unlocked_wives,
+                IMG_DIR,
+                personal_gallery_path
+            )
+
+            if not os.path.exists(personal_gallery_path):
+                yield event.plain_result('个人图鉴生成失败，未找到图片文件。')
+                return
+
+            with open(personal_gallery_path, 'rb') as f:
+                image_data = f.read()
+
+            msg = f'{nickname}，你的个人老婆图鉴来啦~ 已解锁: {len(unlocked_wives)}'
+            yield event.chain_result([Plain(msg), Image.fromBytes(image_data)])
+
+        except Exception as e:
+            print(f"生成个人图鉴失败: {e}")
+            yield event.plain_result('生成个人图鉴失败，请稍后再试。')
+
+# 加载群配置数据，兼容旧格式
 def load_group_config(group_id: str):
     filename = os.path.join(CONFIG_DIR, f'{group_id}.json')
     try:
@@ -505,11 +611,18 @@ def load_group_config(group_id: str):
                             # 升级旧格式的 unlocked 列表
                             user_data["unlocked"] = upgrade_unlocked_format(user_data["unlocked"])
             return config
-    except:
+    except Exception as e:
+        print(f"加载群配置失败: {e}")
         return {}
 
-# 写入 JSON 数据
+# 写入群配置数据
 def write_group_config(group_id: str, config: dict):
     config_file = os.path.join(CONFIG_DIR, f'{group_id}.json')
-    with open(config_file, 'w', encoding='utf-8') as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
+    try:
+        with open(config_file, 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"保存群配置失败: {e}")
+
+# 程序启动时加载NTR数据
+load_ntr_data()
