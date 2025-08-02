@@ -51,8 +51,28 @@ ntr_possibility = 0.20
 ntr_statuses = {}  # NTR功能开关状态
 ntr_limits = {}    # NTR次数限制，按群、用户、日期记录
 
+def clean_old_ntr_data():
+    """清理非当天的NTR计数数据，只保留今日记录"""
+    global ntr_limits
+    today = get_today()
+    # 遍历所有群和用户，只保留当天的计数
+    for group_id in list(ntr_limits.keys()):
+        group_data = ntr_limits[group_id]
+        for user_id in list(group_data.keys()):
+            user_data = group_data[user_id]
+            # 删除非今日的日期记录
+            for date in list(user_data.keys()):
+                if date != today:
+                    del user_data[date]
+            # 若用户当天无记录，可选择删除该用户条目
+            if not user_data:
+                del group_data[user_id]
+        # 若群内无用户数据，可选择删除该群条目
+        if not group_data:
+            del ntr_limits[group_id]
+
 def load_ntr_data():
-    """加载NTR状态和次数限制数据"""
+    """加载NTR状态和次数限制数据，并清理历史记录"""
     global ntr_statuses, ntr_limits
     ntr_statuses = {}
     ntr_limits = {}
@@ -79,6 +99,9 @@ def load_ntr_data():
     else:
         ntr_limits = {}
 
+    # 关键：加载后清理历史数据，只保留当天计数
+    clean_old_ntr_data()
+
 def save_ntr_data():
     """保存NTR状态和次数限制数据"""
     try:
@@ -92,16 +115,41 @@ def save_ntr_data():
     except Exception as e:
         print(f"保存NTR数据失败: {e}")
 
-def _upgrade_ntr_limit_format(old_data):
-    """将旧格式的NTR次数数据升级为新的日期关联格式"""
+def _upgrade_ntr_limit_format(data):
+    """
+    将旧格式的NTR次数数据升级为新的日期关联格式。
+    此函数具有幂等性，可以安全地处理已经是新格式的数据。
+    旧格式: {'group_id': {'user_id': count_int}}
+    新格式: {'group_id': {'user_id': {'date_str': count_int}}}
+    """
+    if not data:
+        return data
+
+    # 通过检查第一个用户记录的格式来判断是否需要转换
+    try:
+        first_group_data = next(iter(data.values()))
+        # 处理群组存在但无用户记录的边缘情况
+        if not first_group_data:
+            return data
+        first_user_record = next(iter(first_group_data.values()))
+        # 如果记录值是字典，说明已经是新格式，无需转换
+        if isinstance(first_user_record, dict):
+            return data
+    except (StopIteration, AttributeError):
+        # 数据为空或结构不完整（例如，群里没人），无需转换
+        return data
+
+    # 确定是旧格式，执行转换
     new_data = {}
     today = get_today()
-    
-    for group_id, user_data in old_data.items():
+    for group_id, user_data in data.items():
+        if not isinstance(user_data, dict):
+            continue
         new_group_data = {}
+        # 只处理值为整数的旧格式记录
         for user_id, count in user_data.items():
-            # 旧格式中count是当日次数，但没有日期记录，默认关联到今天
-            new_group_data[user_id] = {today: count}
+            if isinstance(count, int):
+                new_group_data[user_id] = {today: count}
         new_data[group_id] = new_group_data
     return new_data
 
@@ -305,7 +353,7 @@ class WifePlugin(Star):
 
     async def ntr_wife(self, event: AstrMessageEvent):
         """NTR（抢老婆）功能实现"""
-        group_id = event.message_obj.group_id
+        group_id = str(event.message_obj.group_id)
         if not group_id:
             yield event.plain_result('该功能仅支持群聊，请在群聊中使用。')
             return
@@ -321,8 +369,9 @@ class WifePlugin(Star):
             yield event.plain_result('无法获取用户信息，请检查消息事件对象。')
             return
 
+        # 每次操作前强制刷新当天日期，避免跨天问题
         today = get_today()
-        # 获取用户今日NTR次数
+        # 获取用户今日NTR次数（明确从当天日期获取，默认0）
         group_ntr = ntr_limits.setdefault(str(group_id), {})
         user_ntr = group_ntr.setdefault(user_id, {})
         today_count = user_ntr.get(today, 0)
@@ -349,7 +398,6 @@ class WifePlugin(Star):
             yield event.plain_result('对方还没有老婆哦~')
             return
 
-        today = get_today()
         target_data = config[str(target_id)]
         if target_data["current"]["date"] != today:
             yield event.plain_result('对方的老婆已过期，换个目标吧~')
@@ -362,7 +410,11 @@ class WifePlugin(Star):
         if random.random() < ntr_possibility:
             target_wife = target_data["current"]["wife_name"]
             # 更新当前用户的老婆
-            user_data = config[str(user_id)]
+            user_data = config.setdefault(str(user_id), {
+                "current": {"wife_name": None, "date": ""},
+                "unlocked": [],
+                "nickname": nickname
+            })
             user_data["current"] = {
                 "wife_name": target_wife,
                 "date": today
@@ -411,7 +463,7 @@ class WifePlugin(Star):
 
         wife_name = target_data["current"]["wife_name"]
         name, source = parse_wife_name(wife_name)
-        target_nickname = target_data["nickname"] or "用户"
+        target_nickname = target_data.get("nickname") or "用户"
 
         # 获取解锁时间
         unlock_date = get_unlock_date(target_data["unlocked"], wife_name)
@@ -445,7 +497,7 @@ class WifePlugin(Star):
 
     async def switch_ntr(self, event: AstrMessageEvent):
         """切换NTR功能开关状态"""
-        group_id = event.message_obj.group_id
+        group_id = str(event.message_obj.group_id)
         if not group_id:
             yield event.plain_result('该功能仅支持群聊，请在群聊中使用。')
             return
