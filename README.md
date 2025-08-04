@@ -7,7 +7,7 @@
 _✨ [astrbot](https://github.com/AstrBotDevs/AstrBot) 群老婆插件 ✨_
 
 [![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
-[![GitHub](https://img.shields.io/badge/作者-Futureppo-blue)](https://github.com/zgojin)
+[![GitHub](https://img.shields.io/badge/作者-zgojin-blue)](https://github.com/zgojin)
 
 </div>
 
