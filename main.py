@@ -9,7 +9,6 @@ from datetime import datetime, timedelta
 import requests
 from astrbot.api.all import *
 from astrbot.api.event import filter
-from astrbot.api.event.filter import EventMessageType  # 新增导入
 
 # 设置插件主目录
 PLUGIN_DIR = os.path.join("data", "plugins", "astrbot_plugin_AnimeWife")
