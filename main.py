@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 import requests
 from astrbot.api.all import *
 from astrbot.api.event import filter
+from astrbot.api.event.filter import EventMessageType  # 新增导入
 
 # 设置插件主目录
 PLUGIN_DIR = os.path.join("data", "plugins", "astrbot_plugin_AnimeWife")
@@ -261,16 +262,13 @@ class WifePlugin(Star):
                             pass
         return None
 
-    @event_message_type(EventMessageType.ALL)
-    async def on_all_messages(self, event: AstrMessageEvent):
-        """消息处理入口，进行群聊检查"""
-        # 检查是否为群聊消息，其他消息不处理
-        if not hasattr(event.message_obj, "group_id"):
-            return
-
-    @filter.command("抽取老婆")
+    @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
     async def animewife(self, event: AstrMessageEvent):
         """随机抽取一张二次元老婆"""
+        # 检查消息是否包含指令关键词
+        if "抽取老婆" not in event.message_str.strip():
+            return
+
         group_id = event.message_obj.group_id
         if not group_id:
             return
@@ -361,9 +359,13 @@ class WifePlugin(Star):
         # 保存配置
         write_group_config(group_id, config)
 
-    @filter.command("牛老婆")
+    @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
     async def ntr_wife(self, event: AstrMessageEvent):
         """牛老婆 @user"""
+        # 检查消息是否包含指令关键词
+        if not event.message_str.strip().startswith("牛老婆"):
+            return
+
         group_id = str(event.message_obj.group_id)
         if not group_id:
             yield event.plain_result("该功能仅支持群聊，请在群聊中使用。")
@@ -448,9 +450,13 @@ class WifePlugin(Star):
                 f"{nickname}，你的NTR计划失败了，还剩{remaining}次机会~"
             )
 
-    @filter.command("查老婆")
+    @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
     async def search_wife(self, event: AstrMessageEvent):
         """查老婆 @user"""
+        # 检查消息是否包含指令关键词
+        if not event.message_str.strip().startswith("查老婆"):
+            return
+
         group_id = event.message_obj.group_id
         if not group_id:
             yield event.plain_result("该功能仅支持群聊，请在群聊中使用。")
@@ -514,9 +520,13 @@ class WifePlugin(Star):
         except:
             yield event.plain_result(text_message)
 
-    @filter.command("切换ntr状态")
+    @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
     async def switch_ntr(self, event: AstrMessageEvent):
         """切换是否进入NTR状态"""
+        # 检查消息是否匹配指令
+        if event.message_str.strip() != "切换ntr状态":
+            return
+
         group_id = str(event.message_obj.group_id)
         if not group_id:
             yield event.plain_result("该功能仅支持群聊，请在群聊中使用。")
@@ -538,9 +548,13 @@ class WifePlugin(Star):
         status_text = "开启" if ntr_statuses[group_id] else "关闭"
         yield event.plain_result(f"NTR功能已{status_text}，请注意群内和谐~")
 
-    @filter.command("群老婆图鉴")
+    @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
     async def show_group_wife_gallery(self, event: AstrMessageEvent):
         """查看群里已经解锁的老婆"""
+        # 检查消息是否匹配指令
+        if event.message_str.strip() != "群老婆图鉴":
+            return
+
         group_id = event.message_obj.group_id
         if not group_id:
             yield event.plain_result("该功能仅支持群聊，请在群聊中使用。")
@@ -604,9 +618,13 @@ class WifePlugin(Star):
             print(f"生成图鉴失败: {e}")
             yield event.plain_result("生成图鉴失败，请稍后再试。")
 
-    @filter.command("老婆图鉴")
+    @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
     async def show_personal_wife_gallery(self, event: AstrMessageEvent):
         """查看已经解锁的老婆"""
+        # 检查消息是否匹配指令
+        if event.message_str.strip() != "老婆图鉴":
+            return
+
         group_id = event.message_obj.group_id
         if not group_id:
             yield event.plain_result("该功能仅支持群聊，请在群聊中使用。")
