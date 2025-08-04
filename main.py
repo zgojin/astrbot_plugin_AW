@@ -212,20 +212,12 @@ def get_unlock_date(unlocked, wife_name):
     "wife_plugin",
     "长安某",
     "二次元老婆抽卡与图鉴插件",
-    "1.5.2",
+    "1.5.3",
     "https://github.com/zgojin/astrbot_plugin_AW",
 )
 class WifePlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
-        self.commands = {
-            "抽老婆": self.animewife,
-            "牛老婆": self.ntr_wife,
-            "查老婆": self.search_wife,
-            "切换ntr状态": self.switch_ntr,
-            "群老婆图鉴": self.show_group_wife_gallery,
-            "老婆图鉴": self.show_personal_wife_gallery,
-        }
         self.admins = self.load_admins()
 
     def load_admins(self):
@@ -271,19 +263,10 @@ class WifePlugin(Star):
 
     @event_message_type(EventMessageType.ALL)
     async def on_all_messages(self, event: AstrMessageEvent):
-        """消息处理入口，检查并执行匹配的命令"""
-        # 检查是否为群聊消息
+        """消息处理入口，进行群聊检查"""
+        # 检查是否为群聊消息，其他消息不处理
         if not hasattr(event.message_obj, "group_id"):
             return
-
-        group_id = event.message_obj.group_id
-        message_str = event.message_str.strip()
-
-        for command, func in self.commands.items():
-            if command in message_str:
-                async for result in func(event):
-                    yield result
-                break
 
     @filter.command("抽取老婆")
     async def animewife(self, event: AstrMessageEvent):

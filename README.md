@@ -1,3 +1,17 @@
+</div>
+
+<div align="center">
+
+# astrbot_plugin_AnimeWife
+
+_✨ [astrbot](https://github.com/AstrBotDevs/AstrBot) 群老婆插件 ✨_
+
+[![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
+[![GitHub](https://img.shields.io/badge/作者-Futureppo-blue)](https://github.com/Futureppo)
+[![GitHub](https://img.shields.io/badge/作者-Zhalslar-blue)](https://github.com/Zhalslar)
+
+</div>
+
 ## 写在前面 ##
 - 灵感取自 [https://github.com/Rinco304/AnimeWife](https://github.com/Rinco304/AnimeWife)
 
@@ -16,19 +30,26 @@ gayhub不怎么会玩，不知道怎么设置，导致下载插件会下载relea
 - 增加了`老婆图鉴` 功能
 - 增加了`老婆图鉴` 功能，之前的指令替换为`群老婆图鉴`（本来没打算做这个的，谁让之前写的出bug了呢），把原来图鉴图片生成方式修改，提高图鉴生成速度（第一次生成可能依旧需要时间
 - 修复牛老婆数据被破坏导致无法牛的问题
-## 指令 ##
-- `抽老婆` 每天一次，随机抽一张二次元老婆
-- `查老婆` 查看今日老婆 加@可以查看别人老婆
-- `老婆图鉴` 查看已经解锁的老婆
-- `群老婆图鉴` 查看群里已经解锁的老婆
-- `切换ntr状态` 嗯.....
-- `牛老婆` 嗯.......
+- 加入指令查看、初步格式化代码
+## ⌨️ 命令
+
+|     命令      |      说明        |
+|:-------------:|:------------------------------------:|
+|   抽取老婆        | 每天一次，随机抽一张二次元老婆  |
+|   查老婆          | 看今日老婆 加@可以查看别人老婆  |
+|   老婆图鉴        | 看已经解锁的老婆    |
+|   群老婆图鉴      | 查看群里已经解锁的老婆 |
+|   切换ntr状态     | 嗯....... |
+|   牛老婆          | 嗯....... |
+
 ## 更新计划 ##
 - 1.6 `用户档案` 统计用户在群内抽取/牛/收集/被牛/次数
 - 1.7 好感度或者issues里说的玩老婆功能？不过不会那么露骨
 - 1.8 `老婆档案` 某个老婆的相遇时间（解锁时间）抽取次数好感度等
 
+## 🌟 支持
 
+- Star 这个项目！
 
 
 
