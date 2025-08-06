@@ -237,9 +237,9 @@ def get_unlock_date(unlocked, wife_name):
 )
 class WifePlugin(Star):
     def __init__(self, context: Context):
-    super().__init__(context)
-    self.admins = self.load_admins()
-    self.set_ntr_permission = self.set_ntr_permission.__get__(self)
+        super().__init__(context)
+        self.admins = self.load_admins()
+        self.set_ntr_permission = self.set_ntr_permission.__get__(self)
 
     def load_admins(self):
         """加载管理员列表"""
