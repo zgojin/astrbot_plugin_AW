@@ -36,6 +36,8 @@ os.makedirs(GALLERY_DIR, exist_ok=True)
 NTR_STATUS_FILE = os.path.join(CONFIG_DIR, "ntr_status.json")
 # NTR 次数限制文件路径
 NTR_LIMIT_FILE = os.path.join(CONFIG_DIR, "ntr_limit.json")
+# NTR 权限配置文件路径
+NTR_PERMISSION_FILE = os.path.join(CONFIG_DIR, "ntr_permission.json")
 
 # 图片的基础 URL
 IMAGE_BASE_URL = "http://save.my996.top/?/img/"
@@ -51,6 +53,7 @@ ntr_possibility = 0.20
 # 全局NTR数据
 ntr_statuses = {}  # NTR功能开关状态
 ntr_limits = {}  # NTR次数限制，按群、用户、日期记录
+ntr_permissions = {}  # NTR权限配置，控制"切换ntr状态"指令是否仅管理员可用
 
 
 def clean_old_ntr_data():
@@ -75,10 +78,11 @@ def clean_old_ntr_data():
 
 
 def load_ntr_data():
-    """加载NTR状态和次数限制数据，并清理历史记录"""
-    global ntr_statuses, ntr_limits
+    """加载NTR状态、次数限制和权限配置数据，并清理历史记录"""
+    global ntr_statuses, ntr_limits, ntr_permissions
     ntr_statuses = {}
     ntr_limits = {}
+    ntr_permissions = {}
 
     # 加载NTR状态
     if os.path.exists(NTR_STATUS_FILE):
@@ -102,12 +106,23 @@ def load_ntr_data():
     else:
         ntr_limits = {}
 
+    # 加载NTR权限配置
+    if os.path.exists(NTR_PERMISSION_FILE):
+        try:
+            with open(NTR_PERMISSION_FILE, "r", encoding="utf-8") as f:
+                ntr_permissions = json.load(f)
+        except Exception as e:
+            print(f"加载NTR权限配置失败: {e}")
+            ntr_permissions = {}
+    else:
+        ntr_permissions = {}
+
     # 关键：加载后清理历史数据，只保留当天计数
     clean_old_ntr_data()
 
 
 def save_ntr_data():
-    """保存NTR状态和次数限制数据"""
+    """保存NTR状态、次数限制和权限配置数据"""
     try:
         # 保存NTR状态
         with open(NTR_STATUS_FILE, "w", encoding="utf-8") as f:
@@ -116,6 +131,11 @@ def save_ntr_data():
         # 保存NTR次数限制
         with open(NTR_LIMIT_FILE, "w", encoding="utf-8") as f:
             json.dump(ntr_limits, f, ensure_ascii=False, indent=2)
+
+        # 保存NTR权限配置
+        with open(NTR_PERMISSION_FILE, "w", encoding="utf-8") as f:
+            json.dump(ntr_permissions, f, ensure_ascii=False, indent=2)
+
     except Exception as e:
         print(f"保存NTR数据失败: {e}")
 
@@ -212,13 +232,14 @@ def get_unlock_date(unlocked, wife_name):
     "wife_plugin",
     "长安某",
     "二次元老婆抽卡与图鉴插件",
-    "1.5.3",
+    "1.5.4",
     "https://github.com/zgojin/astrbot_plugin_AW",
 )
 class WifePlugin(Star):
     def __init__(self, context: Context):
-        super().__init__(context)
-        self.admins = self.load_admins()
+    super().__init__(context)
+    self.admins = self.load_admins()
+    self.set_ntr_permission = self.set_ntr_permission.__get__(self)
 
     def load_admins(self):
         """加载管理员列表"""
@@ -261,7 +282,47 @@ class WifePlugin(Star):
                             pass
         return None
 
-    @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
+    # 添加设置NTR权限的方法
+    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
+    async def set_ntr_permission(self, event: AstrMessageEvent):
+        """设置“切换NTR状态”的权限，仅管理员可用
+        命令: 设置ntr权限 管理员/所有人
+        """
+        msg = event.message_str.strip()
+        if not msg.startswith("设置ntr权限"):
+            return
+
+        group_id = str(event.message_obj.group_id)
+        if not group_id:
+            yield event.plain_result("该功能仅支持群聊，请在群聊中使用。")
+            return
+
+        try:
+            user_id = str(event.get_sender_id())
+            nickname = event.get_sender_name() or "用户"
+        except:
+            yield event.plain_result("无法获取用户信息，请检查消息事件对象。")
+            return
+
+        # 只有管理员可以设置权限
+        if user_id not in self.admins:
+            yield event.plain_result(f"{nickname}，你没有权限设置NTR功能权限。")
+            return
+
+        # 解析参数
+        parts = msg.split()
+        if len(parts) < 2 or parts[1] not in ["管理员", "所有人"]:
+            yield event.plain_result("请使用正确格式: 设置ntr权限 管理员/所有人")
+            return
+
+        # 更新权限配置
+        only_admin = parts[1] == "管理员"
+        ntr_permissions[group_id] = {"only_admin": only_admin}
+        save_ntr_data()
+
+        yield event.plain_result(f"已设置切换NTR状态权限为: {parts[1]}")
+
+    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def animewife(self, event: AstrMessageEvent):
         """随机抽取一张二次元老婆"""
         # 检查消息是否包含指令关键词
@@ -358,7 +419,7 @@ class WifePlugin(Star):
         # 保存配置
         write_group_config(group_id, config)
 
-    @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
+    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def ntr_wife(self, event: AstrMessageEvent):
         """牛老婆 @user"""
         # 检查消息是否包含指令关键词
@@ -449,7 +510,7 @@ class WifePlugin(Star):
                 f"{nickname}，你的NTR计划失败了，还剩{remaining}次机会~"
             )
 
-    @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
+    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def search_wife(self, event: AstrMessageEvent):
         """查老婆 @user"""
         # 检查消息是否包含指令关键词
@@ -519,7 +580,8 @@ class WifePlugin(Star):
         except:
             yield event.plain_result(text_message)
 
-    @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
+    # 修改现有的switch_ntr方法，添加权限检查
+    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def switch_ntr(self, event: AstrMessageEvent):
         """切换是否进入NTR状态"""
         # 检查消息是否匹配指令
@@ -538,7 +600,9 @@ class WifePlugin(Star):
             yield event.plain_result("无法获取用户信息，请检查消息事件对象。")
             return
 
-        if user_id not in self.admins:
+        # 检查权限配置，默认仅管理员可操作
+        permission = ntr_permissions.get(group_id, {"only_admin": True})
+        if permission["only_admin"] and user_id not in self.admins:
             yield event.plain_result(f"{nickname}，你没有权限切换NTR功能状态。")
             return
 
@@ -547,7 +611,7 @@ class WifePlugin(Star):
         status_text = "开启" if ntr_statuses[group_id] else "关闭"
         yield event.plain_result(f"NTR功能已{status_text}，请注意群内和谐~")
 
-    @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
+    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def show_group_wife_gallery(self, event: AstrMessageEvent):
         """查看群里已经解锁的老婆"""
         # 检查消息是否匹配指令
@@ -617,7 +681,7 @@ class WifePlugin(Star):
             print(f"生成图鉴失败: {e}")
             yield event.plain_result("生成图鉴失败，请稍后再试。")
 
-    @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
+    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def show_personal_wife_gallery(self, event: AstrMessageEvent):
         """查看已经解锁的老婆"""
         # 检查消息是否匹配指令
