@@ -92,6 +92,9 @@ def load_ntr_data():
         except Exception as e:
             print(f"加载NTR状态失败: {e}")
             ntr_statuses = {}
+    else:
+        # 明确设置ntr默认状态为关闭
+        ntr_statuses = {"default": False}
 
     # 加载NTR次数限制
     if os.path.exists(NTR_LIMIT_FILE):
