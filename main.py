@@ -434,15 +434,23 @@ class WifePlugin(Star):
             yield event.plain_result("该功能仅支持群聊，请在群聊中使用。")
             return
 
-        if not ntr_statuses.get(group_id, False):
-            yield event.plain_result("NTR功能未开启！")
-            return
-
         try:
             user_id = str(event.get_sender_id())
             nickname = event.get_sender_name() or "用户"
         except:
             yield event.plain_result("无法获取用户信息，请检查消息事件对象。")
+            return
+
+        # 权限检查：管理员模式下仅管理员可操作
+        permission = ntr_permissions.get(group_id, {"only_admin": True})
+        if permission["only_admin"] and user_id not in self.admins:
+            yield event.plain_result(
+                f"{nickname}，当前NTR权限为【管理员】模式，仅管理员可使用牛老婆功能。"
+            )
+            return
+
+        if not ntr_statuses.get(group_id, False):
+            yield event.plain_result("NTR功能未开启！")
             return
 
         # 每次操作前强制刷新当天日期，避免跨天问题
