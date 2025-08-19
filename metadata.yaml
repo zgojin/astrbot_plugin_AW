@@ -2,4 +2,4 @@ name: astrbot_plugin_AnimeWife # 这是你的插件的唯一识别名。
 desc: 群老婆插件 # 插件简短描述
 version: v1.5.3 # 插件版本号。格式：v1.1.1 或者 v1.1
 author: 长安某 # 作者
-repo: https://github.com/zgojin/zgojin-zgojin-astrbot_plugin_AW # 插件的仓库地址
+repo: https://github.com/zgojin/astrbot_plugin_AW # 插件的仓库地址
